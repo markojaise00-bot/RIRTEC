@@ -1,6 +1,9 @@
 import { router } from "expo-router";
-import React, { useState } from "react";
+import * as SQLite from "expo-sqlite";
+import React, { useEffect, useState } from "react";
+
 import {
+  Alert,
   Image,
   StyleSheet,
   Text,
@@ -10,24 +13,55 @@ import {
 } from "react-native";
 
 export default function LoginScreen() {
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  const db = SQLite.openDatabaseSync("rirtec.db");
+
+  // Create admin table if not exists
+  useEffect(() => {
+    db.execSync(`
+      CREATE TABLE IF NOT EXISTS admin (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT,
+        password TEXT
+      );
+    `);
+
+    // Optional: insert default admin
+    db.execSync(`
+      INSERT INTO admin (email, password)
+      SELECT 'admin', '1234'
+      WHERE NOT EXISTS (SELECT 1 FROM admin WHERE email='admin');
+    `);
+
+  }, []);
+
   const handleLogin = () => {
     if (!email || !password) {
-      console.log("Error", "Please enter email and password");
+      Alert.alert("Error", "Please enter email and password");
       return;
     }
 
-    // Example validation
-    if (email === "admin" && password === "1234") {
-      console.log("Success", "Login Successful!");
-      router.push("/admin/admin-dashboard");
-    } else {
-      console.log("Invalid", "Incorrect email or password");
+    try {
+      const result = db.getAllSync(
+        "SELECT * FROM admin WHERE email=? AND password=?",
+        [email, password]
+      );
+
+      if (result.length > 0) {
+        Alert.alert("Success", "Login Successful!");
+        router.push("/admin/admin-dashboard");
+      } else {
+        Alert.alert("Invalid", "Incorrect email or password");
+      }
+
+    } catch (error) {
+      console.log("Database error:", error);
     }
   };
-  
+
   return (
     <View style={styles.container}>
       <Image
@@ -64,12 +98,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     padding: 25,
     backgroundColor: "#f4f6f9",
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    marginBottom: 40,
-    textAlign: "center",
   },
   input: {
     backgroundColor: "#fff",
